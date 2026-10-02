@@ -9,6 +9,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [isLogin, setIsLogin] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -16,27 +17,56 @@ function App() {
     setError("");
     setSuccess("");
 
+    if (!formData.email || !formData.password || (!isLogin && !formData.name)) {
+      setError("Please fill in all required fields.");
+      return;
+    }
+
     setLoading(true);
     
     try {
-    const response = await fetch("http://localhost:5000/api/v1/auth/register", {
+    const response = await fetch(`http://localhost:5000/api/v1/auth/${isLogin ? "login" : "register"}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(formData),
+      body: JSON.stringify(
+        isLogin ? {
+          email: formData.email,
+          password: formData.password,
+        }
+      : formData
+    ),
     });
 
     if (!response.ok) {
       const data = await response.json();
-      setError(data.message || "Registration failed.");
+      setError(data.message || (isLogin ? "Login failed." : "Registration failed."));
       setLoading(false);
       return;
     }
 
     const data = await response.json();
-    console.log(data);
-    setSuccess("Registration successful!");
+    console.log("Authentication response:", data);
+
+    if (data.data?.token) {
+      localStorage.setItem("token", data.data.token);
+    }
+
+    if (data.data?.user) {
+  localStorage.setItem("user", JSON.stringify(data.data.user));
+    }
+
+    setSuccess(isLogin ? "Login successful!" : "Registration successful!");
+
+    if (!isLogin) {
+      setFormData({
+        name: "",
+        email: "",
+        password: "",
+      });
+    }
+
     setLoading(false);  
   } catch (error) {
     console.error(error);
@@ -48,12 +78,13 @@ function App() {
   
   return (
     <div>
-      <h1>Create an Account</h1>
+      <h1>{isLogin ? "Login" : "Create an Account"}</h1>
 
       <form onSubmit={handleSubmit}>
         {error && <p>{error}</p>}
         {success && <p>{success}</p>}
 
+      {!isLogin && (
         <input 
           type="text" 
           placeholder="Name"
@@ -65,6 +96,7 @@ function App() {
             })
           }
          />
+      )}
         <input 
           type="email" 
           placeholder="Email"
@@ -88,9 +120,23 @@ function App() {
           }
          />
         <button type="submit" disabled={loading}>
-          {loading ? "Registering..." : "Register"}
+          {loading ? (isLogin ? "Logging in..." : "Registering...") : (isLogin ? "Login" : "Register")}
         </button>
       </form>
+
+      <p>
+        {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
+        <button
+          type="button"
+          onClick={() => {
+            setIsLogin(!isLogin);
+            setError("");
+            setSuccess("");
+          }}
+        >
+          {isLogin ? "Register" : "Login"}
+        </button>
+      </p>
     </div>
   )
 }
