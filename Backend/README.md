@@ -66,11 +66,16 @@ The API listens on `http://localhost:5000`. Never commit `.env` or expose provid
 ## API
 
 - `GET /api/v1/health` checks that the API process is responding.
-- `GET /api/v1/news?q=climate&pageSize=10&from=2026-09-01&to=2026-09-30` searches configured providers. `q` is required (at least 2 characters); `pageSize` is clamped to 1-50. Date filters are optional.
+- `GET /api/v1/news?q=climate&pageSize=10&from=2026-09-01&to=2026-09-30&country=gb` searches configured providers. `q` is required (at least 2 characters); `pageSize` is clamped to 1-50. Date and GNews country filters are optional. When a country is selected, only GNews is queried because The Guardian search endpoint does not support the same country filter.
+- `GET /api/v1/news/filters` returns the editorial sections and country codes supported by this application.
+- `GET /api/v1/news/headlines?category=business&country=gb&page=1&pageSize=10` requests GNews top headlines. Supported categories are `general`, `world`, `nation`, `business`, `technology`, `entertainment`, `sports`, `science`, and `health`; supported country codes are returned by `/api/v1/news/filters`. The response includes GNews pagination metadata.
+- `GET /api/v1/news/sections/:section?country=gb&page=1&pageSize=10` returns a configured TheFeeds section. Native GNews categories use top headlines; editorial sections without a native GNews category use a documented keyword search instead.
 - `POST /api/v1/auth/register` accepts `{ "name": "Ada", "email": "ada@example.com", "password": "a-long-password" }`.
 - `POST /api/v1/auth/login` accepts `{ "email": "ada@example.com", "password": "a-long-password" }`.
 
 News responses contain `data.articles` with a consistent article shape and `data.providers` with successful and failed provider names. At least one provider key must be configured.
+
+The application-level sections `art`, `travel`, `audio`, `video`, and `live` are keyword searches, not GNews media-format/category filters. `culture` maps to GNews `entertainment`, and `earth` maps to GNews `science`.
 
 ## Dependencies
 
@@ -78,9 +83,11 @@ Runtime dependencies are Express 5, Mongoose, bcryptjs, jsonwebtoken, dotenv, He
 
 ## Delivery phases
 
-1. **Backend foundation and provider search (current):** one app/server entry point, environment configuration, health endpoint, registration/login, normalized GNews + Guardian search, and this setup guide.
-2. **Frontend:** add a React + TypeScript + Vite client, typed API client, search/filter experience, responsive article results, and loading/empty/error states. Keep UI dependencies lean; add React Router only when navigation needs more than one view.
-3. **Personalization:** add authenticated saved articles and user preferences, including a MongoDB model, ownership checks, and API endpoints.
-4. **Quality and production readiness:** add API and service tests, request validation/rate limits, structured logging, API documentation, deployment configuration, and CI checks.
+1. **Backend foundation and provider search:** health endpoint, registration/login, normalized GNews + Guardian search, category headline/section routes, and country filter metadata.
+2. **Frontend:** React + TypeScript + Vite client with category navigation, country edition selection, news search, source-linked article summaries, and auth forms.
+3. **Personalization:** authenticated saved articles and user preferences, including a MongoDB model, ownership checks, and API endpoints.
+4. **Quality and production readiness:** expand API and service tests, request validation/rate limits, structured logging, deployment configuration, and CI checks.
 
-We can review each phase before moving on. The current phase does not create a frontend or saved-article storage yet.
+The frontend must not display bookmarks, personal feeds, or preferences as working features until their backend endpoints and contracts are implemented.
+
+GNews references: [Top Headlines endpoint](https://docs.gnews.io/endpoints/top-headlines-endpoint) and [Search endpoint](https://docs.gnews.io/endpoints/search-endpoint).
