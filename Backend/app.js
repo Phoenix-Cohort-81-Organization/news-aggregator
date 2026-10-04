@@ -5,6 +5,7 @@ const env = require('./src/config/env');
 const errorMiddleware = require('./src/middleware/errorMiddleware');
 const authRoutes = require('./src/routes/authRoutes');
 const newsRoutes = require('./src/routes/newsRoutes');
+const articleRoutes = require('./src/routes/articleRoutes');
 
 const app = express();
 
@@ -22,6 +23,7 @@ app.get('/api/v1/health', (req, res) => res.json({
 
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/news', newsRoutes);
+app.use('/api/v1/articles', articleRoutes);
 
 app.use((req, res, next) => {
   const error = new Error('Route not found');
