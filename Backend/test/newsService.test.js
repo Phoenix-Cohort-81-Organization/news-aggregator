@@ -201,3 +201,29 @@ test('exposes health, country/category filters, and country validation over the 
   assert.equal(providerRequests[1].searchParams.get('q'), 'art news');
   assert.equal(providerRequests[1].searchParams.get('country'), 'gb');
 });
+
+test('passes search pagination to GNews', async () => {
+  let requestedUrl;
+
+  global.fetch = async (input) => {
+    requestedUrl = new URL(input);
+
+    return {
+      ok: true,
+      json: async () => ({
+        articles: [],
+      }),
+    };
+  };
+
+  await searchNews({
+    query: 'technology',
+    pageSize: 5,
+    page: 2,
+    country: 'us',
+  });
+
+  assert.equal(requestedUrl.searchParams.get('page'), '2');
+  assert.equal(requestedUrl.searchParams.get('max'), '5');
+  assert.equal(requestedUrl.searchParams.get('country'), 'us');
+});
