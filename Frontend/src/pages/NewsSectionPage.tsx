@@ -15,6 +15,9 @@ export function NewsSectionPage() {
   const news = useNewsSection(section, country, page);
   const sectionMeta = filters.data?.sections.find((item) => item.slug === section);
   const label = sectionMeta?.label ?? section;
+  const pagination = news.data?.pagination;
+  const canGoPrevious = Boolean(pagination && pagination.page > 1);
+  const canGoNext = Boolean(pagination && pagination.page < pagination.totalPages);
 
   useEffect(() => {
     document.title = `${label} — TheFeeds`;
@@ -27,19 +30,46 @@ export function NewsSectionPage() {
     setSearchParams(next);
   };
 
+  const pageLink = (nextPage: number) => {
+    const next = new URLSearchParams();
+    if (country) next.set('country', country);
+    next.set('page', String(nextPage));
+    return `?${next.toString()}`;
+  };
+
   return (
     <section>
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4 border-b border-line pb-4">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent">TheFeeds / Section</p>
-          <h1 className="mt-1 font-serif text-3xl capitalize tracking-tight sm:text-4xl">{label}</h1>
+      <div className="mb-6 border-b-4 border-ink pb-5">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent">TheFeeds / Section</p>
+            <h1 className="mt-1 font-sans text-4xl font-bold tracking-tight sm:text-5xl">{label}</h1>
+          </div>
+          {filters.data && (
+            <CountrySelect
+              countries={filters.data.countries}
+              value={country}
+              onChange={(value) => updateParams(value)}
+            />
+          )}
         </div>
         {filters.data && (
-          <CountrySelect
-            countries={filters.data.countries}
-            value={country}
-            onChange={(value) => updateParams(value)}
-          />
+          <nav className="scrollbar-none mt-5 flex gap-0 overflow-x-auto border-t border-line" aria-label="News categories">
+            {filters.data.sections.map((item) => (
+              <Link
+                key={item.slug}
+                to={`/news/${item.slug}${country ? `?country=${encodeURIComponent(country)}` : ''}`}
+                aria-current={item.slug === section ? 'page' : undefined}
+                className={`shrink-0 border-b-[3px] px-4 py-3 text-sm font-semibold transition-colors first:-ml-4 hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent sm:first:ml-0 ${
+                  item.slug === section
+                    ? 'border-accent text-ink'
+                    : 'border-transparent text-muted hover:border-line'
+                }`}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
         )}
       </div>
 
@@ -64,32 +94,44 @@ export function NewsSectionPage() {
         <EmptyState title={`No ${label} stories found`} message="Try another edition or check back later." />
       ) : (
         <>
-          <div className="mb-4 flex items-center justify-between text-sm text-muted">
+          <div className="mb-4 flex items-center justify-between border-b border-line pb-2 text-sm text-muted">
+            <span className="font-semibold text-ink">Latest {label}</span>
             <span>{news.data.articles.length} stories</span>
-            {news.data.pagination && <span>Page {news.data.pagination.page} of {news.data.pagination.totalPages}</span>}
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {news.data.articles.map((article) => <NewsCard key={article.url} article={article} />)}
           </div>
-          {news.data.pagination && news.data.pagination.totalPages > 1 && (
-            <nav className="mt-8 flex items-center justify-center gap-4" aria-label="News pagination">
-              {page > 1 ? (
+          {pagination && pagination.totalPages > 1 && (
+            <nav className="mt-8 flex items-center justify-between border-y border-line py-4" aria-label="News pagination">
+              {canGoPrevious ? (
                 <Link
-                  to={`?${new URLSearchParams({ ...(country ? { country } : {}), page: String(page - 1) })}`}
-                  className="border border-line px-4 py-2 text-sm font-semibold hover:border-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                  to={pageLink(pagination.page - 1)}
+                  rel="prev"
+                  className="inline-flex min-h-11 items-center gap-2 border border-line px-4 text-sm font-bold hover:border-ink hover:bg-paper focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 >
-                  Previous
+                  <span aria-hidden="true">←</span> Previous
                 </Link>
-              ) : <span className="border border-line px-4 py-2 text-sm text-muted">Previous</span>}
-              <span className="text-sm text-muted">Page {page}</span>
-              {page < news.data.pagination.totalPages ? (
+              ) : (
+                <span aria-disabled="true" className="inline-flex min-h-11 items-center gap-2 border border-line px-4 text-sm font-semibold text-muted/60">
+                  <span aria-hidden="true">←</span> Previous
+                </span>
+              )}
+              <span className="text-sm font-semibold text-muted" aria-live="polite">
+                Page {pagination.page} of {pagination.totalPages}
+              </span>
+              {canGoNext ? (
                 <Link
-                  to={`?${new URLSearchParams({ ...(country ? { country } : {}), page: String(page + 1) })}`}
-                  className="border border-line px-4 py-2 text-sm font-semibold hover:border-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                  to={pageLink(pagination.page + 1)}
+                  rel="next"
+                  className="inline-flex min-h-11 items-center gap-2 border border-line px-4 text-sm font-bold hover:border-ink hover:bg-paper focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 >
-                  Next
+                  Next <span aria-hidden="true">→</span>
                 </Link>
-              ) : <span className="border border-line px-4 py-2 text-sm text-muted">Next</span>}
+              ) : (
+                <span aria-disabled="true" className="inline-flex min-h-11 items-center gap-2 border border-line px-4 text-sm font-semibold text-muted/60">
+                  Next <span aria-hidden="true">→</span>
+                </span>
+              )}
             </nav>
           )}
         </>

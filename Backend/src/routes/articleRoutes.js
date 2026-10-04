@@ -7,11 +7,12 @@ const {
 } = require("../controllers/articleController");
 
 const { authenticate } = require("../middleware/authMiddleware");
+const { validateArticle, validateArticleId } = require("../middleware/articleValidation");
 
 const router = express.Router();
 
-router.post("/", authenticate, createArticle);
+router.post("/", authenticate, validateArticle, createArticle);
 router.get("/", getArticles);
-router.get("/:id", getArticleById);
+router.get("/:id", validateArticleId, getArticleById);
 
 module.exports = router;
