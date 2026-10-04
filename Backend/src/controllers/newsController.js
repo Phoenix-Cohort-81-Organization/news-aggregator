@@ -162,6 +162,7 @@ exports.searchNews = async (req, res, next) => {
     const result = await searchNews({
       query,
       pageSize,
+      page: requestedPage,
       from: req.query.from,
       to: req.query.to,
       country,
