@@ -1,7 +1,17 @@
 const assert = require('node:assert/strict');
 const request = require('supertest');
-const { test } = require('node:test');
+const { after, before, test } = require('node:test');
 const app = require('../app');
+const connectDB = require('../src/config/database');
+
+before(async () => {
+  await connectDB();
+});
+
+after(async () => {
+  const mongoose = require('mongoose');
+  await mongoose.connection.close();
+});
 
 const uniqueEmail = () =>
   `test-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`;
