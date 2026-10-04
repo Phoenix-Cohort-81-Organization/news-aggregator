@@ -11,28 +11,13 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     isActive ? 'text-ink after:absolute after:inset-x-0 after:bottom-0 after:h-[3px] after:bg-accent' : 'text-muted'
   }`;
 
-const fallbackSections = [
-  { slug: 'news', label: 'News' },
-  { slug: 'sport', label: 'Sport' },
-  { slug: 'business', label: 'Business' },
-  { slug: 'technology', label: 'Technology' },
-  { slug: 'health', label: 'Health' },
-  { slug: 'culture', label: 'Culture' },
-  { slug: 'art', label: 'Art' },
-  { slug: 'travel', label: 'Travel' },
-  { slug: 'earth', label: 'Earth' },
-  { slug: 'audio', label: 'Audio' },
-  { slug: 'video', label: 'Video' },
-  { slug: 'live', label: 'Live' },
-];
-
 export function AppLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchParams] = useSearchParams();
   const filters = useNewsFilters();
   const health = useApiHealth();
   const { user, signOut } = useAuth();
-  const sections = filters.data?.sections ?? fallbackSections;
+  const sections = filters.data?.sections ?? [];
   const country = searchParams.get('country');
   const sectionPath = (slug: string) =>
     `/news/${slug}${country ? `?country=${encodeURIComponent(country)}` : ''}`;
