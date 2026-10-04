@@ -2,8 +2,8 @@ const assert = require('node:assert/strict');
 const { test } = require('node:test');
 const jwt = require('jsonwebtoken');
 
-const { authenticate } = require('../src/middleware/authMiddleware');
-const env = require('../src/config/env');
+const { authenticate } = require('./authMiddleware');
+const env = require('../config/env');
 
 function createResponse() {
   return {

@@ -43,6 +43,7 @@ const articleSchema = new mongoose.Schema(
         category: {
             type: String,
             trim: true,
+            enum: ["politics", "business", "entertainment", "general", "health", "science", "sports", "technology", "world", "lifestyle", "fashion", "travel", "food", "culture", "education", "environment", "opinion", "other"],
             lowercase: true,
             index: true
         },
