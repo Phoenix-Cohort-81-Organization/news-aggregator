@@ -3,24 +3,40 @@ const request = require('supertest');
 const { test } = require('node:test');
 const app = require('../app');
 
-test('registration rejects a missing password', async () => {
-  const response = await request(app)
-    .post('/api/v1/auth/register')
-    .send({
-      name: 'Test User',
-      email: 'test@example.com',
-    });
+const uniqueEmail = () =>
+  `test-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`;
 
-  assert.equal(response.status, 400);
-});
-
-test('registration rejects a missing email', async () => {
+test('login rejects a missing email', async () => {
   const response = await request(app)
-    .post('/api/v1/auth/register')
+    .post('/api/v1/auth/login')
     .send({
-      name: 'Test User',
       password: '123456',
     });
 
   assert.equal(response.status, 400);
+  assert.equal(response.body.success, false);
+});
+
+test('login rejects a missing password', async () => {
+  const response = await request(app)
+    .post('/api/v1/auth/login')
+    .send({
+      email: uniqueEmail(),
+    });
+
+  assert.equal(response.status, 400);
+  assert.equal(response.body.success, false);
+});
+
+test('login rejects an unknown email', async () => {
+  const response = await request(app)
+    .post('/api/v1/auth/login')
+    .send({
+      email: uniqueEmail(),
+      password: '123456',
+    });
+
+  assert.equal(response.status, 401);
+  assert.equal(response.body.success, false);
+  assert.equal(response.body.message, 'Invalid credentials');
 });
