@@ -111,3 +111,52 @@ articleSchema.index({
 const Article = mongoose.model('Article', articleSchema);
 
 module.exports = Article;
+exports.updateArticle = async (req, res, next) => {
+  try {
+    const article = await Article.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
+
+    if (!article) {
+      return res.status(404).json({
+        success: false,
+        message: 'Article not found',
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: { article },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.deleteArticle = async (req, res, next) => {
+  try {
+    const article = await Article.findByIdAndDelete(req.params.id);
+
+    if (!article) {
+      return res.status(404).json({
+        success: false,
+        message: 'Article not found',
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Article deleted successfully',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.updateArticle = async ...
+exports.deleteArticle = async ...
