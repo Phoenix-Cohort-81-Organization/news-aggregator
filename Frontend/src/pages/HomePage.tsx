@@ -104,20 +104,7 @@ export function HomePage() {
         </div>
         {filters.isError && <p className="mb-3 text-sm text-muted">Sections are temporarily unavailable. Try refreshing.</p>}
         <div className="grid grid-cols-2 gap-px border border-line bg-line sm:grid-cols-3 lg:grid-cols-4">
-          {(filters.data?.sections ?? [
-            { slug: 'news', label: 'News' },
-            { slug: 'sport', label: 'Sport' },
-            { slug: 'business', label: 'Business' },
-            { slug: 'technology', label: 'Technology' },
-            { slug: 'health', label: 'Health' },
-            { slug: 'culture', label: 'Culture' },
-            { slug: 'art', label: 'Art' },
-            { slug: 'travel', label: 'Travel' },
-            { slug: 'earth', label: 'Earth' },
-            { slug: 'audio', label: 'Audio' },
-            { slug: 'video', label: 'Video' },
-            { slug: 'live', label: 'Live' },
-          ]).map((section) => (
+          {filters.data?.sections.map((section) => (
             <Link
               key={section.slug}
               to={`/news/${section.slug}${country ? `?country=${country}` : ''}`}
