@@ -54,7 +54,14 @@ exports.getCategories = async (req, res, next) => {
 
 exports.getCategoryById = async (req, res, next) => {
   try {
-    const category = await Category.findById(req.params.id);
+    if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+  return res.status(400).json({
+    success: false,
+    message: 'Invalid category ID',
+  });
+}
+
+const category = await Category.findById(req.params.id);
 
     if (!category) {
       return res.status(404).json({
@@ -74,6 +81,12 @@ exports.getCategoryById = async (req, res, next) => {
 
 exports.updateCategory = async (req, res, next) => {
   try {
+    if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+  return res.status(400).json({
+    success: false,
+    message: 'Invalid category ID',
+  });
+}
     const { name, slug } = req.body;
 
     if (!name || !slug) {
@@ -113,6 +126,12 @@ exports.updateCategory = async (req, res, next) => {
 
 exports.deleteCategory = async (req, res, next) => {
   try {
+    if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+  return res.status(400).json({
+    success: false,
+    message: 'Invalid category ID',
+  });
+}
     const category = await Category.findByIdAndDelete(req.params.id);
 
     if (!category) {
