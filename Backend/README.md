@@ -1,26 +1,17 @@
-# News Aggregator
+# News Aggregator Backend
 
-A news aggregation API that searches GNews and The Guardian Open Platform, normalizes their articles into one response format, and provides user registration and login.
+A backend API for a news aggregation application. The API provides user authentication, news search, news filtering, and article management. It integrates with external news providers such as GNews and The Guardian Open Platform.
 
 ## Architecture
 
-```mermaid
-flowchart LR
-  Browser[React + TypeScript client, Phase 2] --> API[Express API]
-  API --> Auth[Auth routes and controllers]
-  API --> News[News routes and controller]
-  News --> Service[Provider aggregation service]
-  Service --> GNews[GNews API]
-  Service --> Guardian[Guardian Open Platform]
-  Auth --> MongoDB[(MongoDB)]
-```
+The backend is built with Node.js and Express and uses MongoDB through Mongoose.
 
-The API keys stay on the server. The news service calls each configured provider concurrently, normalizes results, removes duplicate URLs, and returns partial results if one provider is unavailable. Node 20 or newer is recommended; the current Node built-in `fetch` avoids an extra HTTP-client dependency.
+External news API keys are kept on the server and should never be exposed in the frontend application.
 
-## Current project files
+### Project Structure
 
 ```text
-.
+Backend/
 ├── app.js
 ├── server.js
 ├── package.json
@@ -31,63 +22,577 @@ The API keys stay on the server. The news service calls each configured provider
     │   ├── database.js
     │   └── env.js
     ├── controllers/
+    │   ├── articleController.js
     │   ├── authController.js
     │   └── newsController.js
     ├── middleware/
+    │   ├── articleValidation.js
     │   ├── authMiddleware.js
     │   └── errorMiddleware.js
     ├── models/
+    │   ├── article.js
     │   └── User.js
     ├── routes/
+    │   ├── articleRoutes.js
     │   ├── authRoutes.js
     │   └── newsRoutes.js
     └── services/
         └── newsService.js
 ```
 
+## Requirements
+
+* Node.js 20 or newer
+* MongoDB Community Server or MongoDB Atlas
+* GNews API key and/or The Guardian Open Platform API key
+
 ## Setup
 
-1. Install Node.js 20 or newer and MongoDB Community Server, or create a MongoDB Atlas database.
-2. From the project root, install dependencies:
+1. Install the project dependencies:
 
-   ```powershell
-   npm install
-   ```
+```bash
+npm install
+```
 
-3. Copy `.env.example` to `.env` and fill in `MONGODB_URI`, `JWT_SECRET`, and at least one news API key. Get keys from [GNews](https://gnews.io/) and [The Guardian Open Platform](https://open-platform.theguardian.com/).
-4. Start the API:
+2. Create a `.env` file using `.env.example` as a guide.
 
-   ```powershell
-   npm run dev
-   ```
+3. Add the required environment variables, including:
 
-The API listens on `http://localhost:5000`. Never commit `.env` or expose provider keys in a browser application.
+```text
+MONGODB_URI=your_mongodb_connection_string
+JWT_SECRET=your_jwt_secret
+```
 
-## API
+Add the news provider API keys that are required by the application.
 
-- `GET /api/v1/health` checks that the API process is responding.
-- `GET /api/v1/news?q=climate&pageSize=10&from=2026-09-01&to=2026-09-30&country=gb` searches configured providers. `q` is required (at least 2 characters); `pageSize` is clamped to 1-50. Date and GNews country filters are optional. When a country is selected, only GNews is queried because The Guardian search endpoint does not support the same country filter.
-- `GET /api/v1/news/filters` returns the editorial sections and country codes supported by this application.
-- `GET /api/v1/news/headlines?category=business&country=gb&page=1&pageSize=10` requests GNews top headlines. Supported categories are `general`, `world`, `nation`, `business`, `technology`, `entertainment`, `sports`, `science`, and `health`; supported country codes are returned by `/api/v1/news/filters`. The response includes GNews pagination metadata.
-- `GET /api/v1/news/sections/:section?country=gb&page=1&pageSize=10` returns a configured TheFeeds section. Native GNews categories use top headlines; editorial sections without a native GNews category use a documented keyword search instead.
-- `POST /api/v1/auth/register` accepts `{ "name": "Ada", "email": "ada@example.com", "password": "a-long-password" }`.
-- `POST /api/v1/auth/login` accepts `{ "email": "ada@example.com", "password": "a-long-password" }`.
+4. Start the development server:
 
-News responses contain `data.articles` with a consistent article shape and `data.providers` with successful and failed provider names. At least one provider key must be configured.
+```bash
+npm run dev
+```
 
-The application-level sections `art`, `travel`, `audio`, `video`, and `live` are keyword searches, not GNews media-format/category filters. `culture` maps to GNews `entertainment`, and `earth` maps to GNews `science`.
+The API runs on the configured server port.
 
-## Dependencies
+**Never commit `.env` or expose API keys in the frontend application.**
 
-Runtime dependencies are Express 5, Mongoose, bcryptjs, jsonwebtoken, dotenv, Helmet, and CORS. Nodemon is used for development. No separate HTTP client is needed on Node 20+.
+---
 
-## Delivery phases
+# API
 
-1. **Backend foundation and provider search:** health endpoint, registration/login, normalized GNews + Guardian search, category headline/section routes, and country filter metadata.
-2. **Frontend:** React + TypeScript + Vite client with category navigation, country edition selection, news search, source-linked article summaries, and auth forms.
-3. **Personalization:** authenticated saved articles and user preferences, including a MongoDB model, ownership checks, and API endpoints.
-4. **Quality and production readiness:** expand API and service tests, request validation/rate limits, structured logging, deployment configuration, and CI checks.
+## Base URL
 
-The frontend must not display bookmarks, personal feeds, or preferences as working features until their backend endpoints and contracts are implemented.
+```text
+/api/v1
+```
 
-GNews references: [Top Headlines endpoint](https://docs.gnews.io/endpoints/top-headlines-endpoint) and [Search endpoint](https://docs.gnews.io/endpoints/search-endpoint).
+All API responses use a consistent structure.
+
+### Successful response
+
+```json
+{
+  "success": true,
+  "data": {}
+}
+```
+
+### Error response
+
+```json
+{
+  "success": false,
+  "message": "Error message"
+}
+```
+
+---
+
+# Health Check
+
+## GET `/api/v1/health`
+
+Checks whether the API is running.
+
+### Authentication
+
+Not required.
+
+### Example response
+
+```json
+{
+  "success": true,
+  "message": "News Aggregator API is running"
+}
+```
+
+---
+
+# Authentication
+
+## POST `/api/v1/auth/register`
+
+Creates a new user account.
+
+### Authentication
+
+Not required.
+
+### Request body
+
+```json
+{
+  "name": "Ada",
+  "email": "ada@example.com",
+  "password": "a-long-password"
+}
+```
+
+### Method
+
+```text
+POST
+```
+
+---
+
+## POST `/api/v1/auth/login`
+
+Authenticates an existing user.
+
+### Authentication
+
+Not required.
+
+### Request body
+
+```json
+{
+  "email": "ada@example.com",
+  "password": "a-long-password"
+}
+```
+
+### Method
+
+```text
+POST
+```
+
+---
+
+# News Endpoints
+
+News endpoints retrieve and search articles from configured external news providers.
+
+## GET `/api/v1/news`
+
+Searches for news articles.
+
+### Authentication
+
+Not required.
+
+### Query parameters
+
+| Parameter  | Required | Description                                      |
+| ---------- | -------- | ------------------------------------------------ |
+| `q`        | Yes      | Search term. Must contain at least 2 characters. |
+| `pageSize` | No       | Number of results. Limited to 1–50.              |
+| `from`     | No       | Start date for the search.                       |
+| `to`       | No       | End date for the search.                         |
+| `country`  | No       | GNews country code.                              |
+
+### Example
+
+```text
+GET /api/v1/news?q=climate&pageSize=10&from=2026-09-01&to=2026-09-30&country=gb
+```
+
+The response contains normalized articles from the configured providers.
+
+---
+
+## GET `/api/v1/news/filters`
+
+Returns the available editorial sections and supported country codes.
+
+### Authentication
+
+Not required.
+
+---
+
+## GET `/api/v1/news/headlines`
+
+Retrieves top headlines from GNews.
+
+### Authentication
+
+Not required.
+
+### Query parameters
+
+| Parameter  | Required | Description                   |
+| ---------- | -------- | ----------------------------- |
+| `category` | No       | News category.                |
+| `country`  | No       | Supported GNews country code. |
+| `page`     | No       | Page number.                  |
+| `pageSize` | No       | Number of results per page.   |
+
+### Supported categories
+
+```text
+general
+world
+nation
+business
+technology
+entertainment
+sports
+science
+health
+```
+
+### Example
+
+```text
+GET /api/v1/news/headlines?category=business&country=gb&page=1&pageSize=10
+```
+
+---
+
+## GET `/api/v1/news/sections/:section`
+
+Retrieves news for a configured editorial section.
+
+### Authentication
+
+Not required.
+
+### Query parameters
+
+| Parameter  | Required | Description                 |
+| ---------- | -------- | --------------------------- |
+| `country`  | No       | GNews country code.         |
+| `page`     | No       | Page number.                |
+| `pageSize` | No       | Number of results per page. |
+
+### Example
+
+```text
+GET /api/v1/news/sections/sports?country=gb&page=1&pageSize=10
+```
+
+Some editorial sections use keyword searches when there is no directly matching GNews category.
+
+---
+
+# Article Endpoints
+
+Article endpoints provide database-backed article management.
+
+## POST `/api/v1/articles`
+
+Creates a new article.
+
+### Authentication
+
+**Required.**
+
+The request must include a valid JWT:
+
+```text
+Authorization: Bearer <token>
+```
+
+### Request body
+
+```json
+{
+  "title": "Example News Article",
+  "description": "A short description of the article.",
+  "content": "Article content.",
+  "url": "https://example.com/article",
+  "imageUrl": "https://example.com/image.jpg",
+  "author": "Author Name",
+  "source": "Example Source",
+  "name": "Example News",
+  "section": "world",
+  "provider": "gnews",
+  "category": "world",
+  "language": "en",
+  "publishedAt": "2026-10-05T10:00:00.000Z",
+  "externalId": "example-123"
+}
+```
+
+### Required fields
+
+The following fields are required:
+
+```text
+title
+url
+name
+provider
+publishedAt
+```
+
+### Supported providers
+
+```text
+gnews
+guardian
+```
+
+### Supported categories
+
+```text
+politics
+business
+entertainment
+general
+health
+science
+sports
+technology
+world
+lifestyle
+fashion
+travel
+food
+culture
+education
+environment
+opinion
+other
+```
+
+---
+
+## GET `/api/v1/articles`
+
+Returns all stored articles.
+
+### Authentication
+
+Not required.
+
+### Example
+
+```text
+GET /api/v1/articles
+```
+
+---
+
+## GET `/api/v1/articles/:id`
+
+Returns a single article by its MongoDB ID.
+
+### Authentication
+
+Not required.
+
+### Example
+
+```text
+GET /api/v1/articles/68c123456789abcdef123456
+```
+
+If the ID is invalid, the API returns:
+
+```json
+{
+  "success": false,
+  "message": "Invalid article ID"
+}
+```
+
+If the article does not exist:
+
+```json
+{
+  "success": false,
+  "message": "Article not found"
+}
+```
+
+---
+
+# Article Validation
+
+Article creation requests are validated before reaching the controller.
+
+The validation middleware checks that:
+
+* The request body is a JSON object.
+* Required fields are present.
+* String fields contain string values.
+* `publishedAt` contains a valid date.
+* Only supported article fields are submitted.
+* The article ID is a valid MongoDB ObjectId when an ID is supplied.
+
+### Validation error example
+
+```json
+{
+  "success": false,
+  "message": "Invalid article data",
+  "errors": [
+    "title is required"
+  ]
+}
+```
+
+---
+
+# Authentication Middleware
+
+Protected endpoints use JWT authentication.
+
+The client must send the token using the `Authorization` header:
+
+```text
+Authorization: Bearer <token>
+```
+
+Possible authentication errors include:
+
+```json
+{
+  "success": false,
+  "message": "Authentication required"
+}
+```
+
+```json
+{
+  "success": false,
+  "message": "Token not found"
+}
+```
+
+```json
+{
+  "success": false,
+  "message": "Invalid or expired token"
+}
+```
+
+---
+
+# HTTP Status Codes
+
+| Status | Meaning                             |
+| ------ | ----------------------------------- |
+| `200`  | Request successful                  |
+| `201`  | Resource successfully created       |
+| `400`  | Invalid request or validation error |
+| `401`  | Authentication required or invalid  |
+| `404`  | Resource or route not found         |
+| `500`  | Internal server error               |
+
+---
+
+# Current Article CRUD Status
+
+The article controller currently contains functions for:
+
+* Creating articles
+* Retrieving all articles
+* Retrieving an article by ID
+* Updating an article
+* Deleting an article
+
+The currently registered article routes are:
+
+```text
+POST   /api/v1/articles
+GET    /api/v1/articles
+GET    /api/v1/articles/:id
+```
+
+The update and delete controller functions exist but their routes are not currently registered in `articleRoutes.js`.
+
+---
+
+# API Endpoint Summary
+
+| Method | Endpoint                         | Authentication | Purpose              |
+| ------ | -------------------------------- | -------------- | -------------------- |
+| GET    | `/api/v1/health`                 | No             | Check API status     |
+| POST   | `/api/v1/auth/register`          | No             | Register a user      |
+| POST   | `/api/v1/auth/login`             | No             | Log in a user        |
+| GET    | `/api/v1/news`                   | No             | Search news          |
+| GET    | `/api/v1/news/filters`           | No             | Get news filters     |
+| GET    | `/api/v1/news/headlines`         | No             | Get top headlines    |
+| GET    | `/api/v1/news/sections/:section` | No             | Get section news     |
+| POST   | `/api/v1/articles`               | Yes            | Create an article    |
+| GET    | `/api/v1/articles`               | No             | Get all articles     |
+| GET    | `/api/v1/articles/:id`           | No             | Get an article by ID |
+
+---
+
+# Dependencies
+
+### Runtime dependencies
+
+* Express
+* Mongoose
+* bcryptjs
+* jsonwebtoken
+* dotenv
+* Helmet
+* CORS
+
+### Development dependencies
+
+* Nodemon
+* Supertest
+
+---
+
+# Security
+
+The backend follows several security practices:
+
+* Passwords are hashed before storage.
+* JWT is used for authentication.
+* Protected routes require authentication.
+* Helmet is used for HTTP security headers.
+* CORS is configured through environment settings.
+* API keys and secrets are stored in environment variables.
+* Passwords and secrets should not be exposed in API responses or committed to the repository.
+
+---
+
+# Development
+
+Start the development server with:
+
+```bash
+npm run dev
+```
+
+Start the application using Node:
+
+```bash
+npm start
+```
+
+Run the test command:
+
+```bash
+npm test
+```
+
+---
+
+# Delivery Phases
+
+1. **Backend foundation** — API setup, authentication, news providers, article model, routes, and validation.
+2. **Frontend integration** — React frontend connected to the backend API.
+3. **Personalization** — Saved articles and user preferences.
+4. **Quality and production readiness** — Testing, validation improvements, rate limiting, logging, deployment, and CI checks.
