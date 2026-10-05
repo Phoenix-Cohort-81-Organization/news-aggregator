@@ -9,13 +9,22 @@ const ARTICLE_FIELDS = new Set([
   'author',
   'source',
   'name',
+  'section',
+  'provider',
   'category',
   'language',
   'publishedAt',
   'externalId',
 ]);
 
-const REQUIRED_FIELDS = ['title', 'url', 'name', 'publishedAt'];
+const REQUIRED_FIELDS = [
+  'title',
+  'url',
+  'name',
+  'provider',
+  'publishedAt',
+];
+
 const STRING_FIELDS = [
   'title',
   'description',
@@ -25,6 +34,8 @@ const STRING_FIELDS = [
   'author',
   'source',
   'name',
+  'section',
+  'provider',
   'category',
   'language',
   'externalId',
