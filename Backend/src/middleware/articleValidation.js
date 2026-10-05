@@ -8,22 +8,13 @@ const ARTICLE_FIELDS = new Set([
   'imageUrl',
   'author',
   'source',
-  'name',
-  'section',
-  'provider',
   'category',
   'language',
   'publishedAt',
-  'externalId',
+  'section',
 ]);
 
-const REQUIRED_FIELDS = [
-  'title',
-  'url',
-  'name',
-  'provider',
-  'publishedAt',
-];
+const REQUIRED_FIELDS = ['title', 'url', 'publishedAt'];
 
 const STRING_FIELDS = [
   'title',
@@ -33,18 +24,16 @@ const STRING_FIELDS = [
   'imageUrl',
   'author',
   'source',
-  'name',
-  'section',
-  'provider',
   'category',
   'language',
-  'externalId',
+  'section',
 ];
 
 const sendValidationError = (res, errors) => res.status(400).json({
   success: false,
   message: 'Invalid article data',
   errors,
+  data: null,
 });
 
 exports.validateArticle = (req, res, next) => {
@@ -87,7 +76,7 @@ exports.validateArticle = (req, res, next) => {
 
 exports.validateArticleId = (req, res, next) => {
   if (!mongoose.isValidObjectId(req.params.id)) {
-    return res.status(400).json({ success: false, message: 'Invalid article ID' });
+    return res.status(400).json({ success: false, message: 'Invalid article ID', data: null });
   }
   return next();
 };

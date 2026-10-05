@@ -16,11 +16,14 @@ export function AppLayout() {
   const [searchParams] = useSearchParams();
   const filters = useNewsFilters();
   const health = useApiHealth();
-  const { user, signOut } = useAuth();
+  const { user, signOut, isEditor } = useAuth();
   const sections = filters.data?.sections ?? [];
   const country = searchParams.get('country');
   const sectionPath = (slug: string) =>
     `/news/${slug}${country ? `?country=${encodeURIComponent(country)}` : ''}`;
+  const searchPath = country
+    ? `/search?country=${encodeURIComponent(country)}`
+    : '/search';
 
   return (
     <div className="min-h-screen bg-white text-ink">
@@ -77,6 +80,8 @@ export function AppLayout() {
             {menuOpen ? <X size={21} /> : <Menu size={21} />}
           </button>
         </div>
+
+        {/* Desktop nav */}
         <nav
           className="scrollbar-none mx-auto hidden max-w-[1440px] items-center gap-6 overflow-x-auto px-4 sm:flex sm:px-7"
           aria-label="News sections"
@@ -90,8 +95,14 @@ export function AppLayout() {
               {section.label}
             </NavLink>
           ))}
-          <NavLink to={country ? `/search?country=${encodeURIComponent(country)}` : '/search'} className={navLinkClass}>Search</NavLink>
+          <NavLink to={searchPath} className={navLinkClass}>Search</NavLink>
+          <NavLink to="/articles" className={navLinkClass}>Articles</NavLink>
+          {isEditor && (
+            <NavLink to="/editor" className={navLinkClass}>Editor</NavLink>
+          )}
         </nav>
+
+        {/* Mobile nav */}
         {menuOpen && (
           <nav
             id="mobile-navigation"
@@ -109,7 +120,29 @@ export function AppLayout() {
                   {section.label}
                 </NavLink>
               ))}
-              <NavLink to={country ? `/search?country=${encodeURIComponent(country)}` : '/search'} className={navLinkClass} onClick={() => setMenuOpen(false)}>Search</NavLink>
+              <NavLink
+                to={searchPath}
+                className={navLinkClass}
+                onClick={() => setMenuOpen(false)}
+              >
+                Search
+              </NavLink>
+              <NavLink
+                to="/articles"
+                className={navLinkClass}
+                onClick={() => setMenuOpen(false)}
+              >
+                Articles
+              </NavLink>
+              {isEditor && (
+                <NavLink
+                  to="/editor"
+                  className={navLinkClass}
+                  onClick={() => setMenuOpen(false)}
+                >
+                  Editor
+                </NavLink>
+              )}
             </div>
             <div className="flex gap-5 border-t border-line pt-3">
               {user ? (

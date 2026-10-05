@@ -1,14 +1,16 @@
-# News Aggregator Backend
+# TheFeeds — News Aggregator API
 
-A backend API for a news aggregation application. The API provides user authentication, news search, news filtering, and article management. It integrates with external news providers such as GNews and The Guardian Open Platform.
+A REST API for a news aggregator that combines live external news (GNews, The Guardian)
+with editorial articles written by editors and admins.
 
-## Architecture
+**Base URL (local):** `http://localhost:5000/api/v1`
 
 The backend is built with Node.js and Express and uses MongoDB through Mongoose.
+External news API keys are kept on the server and are never exposed to the frontend.
 
-External news API keys are kept on the server and should never be exposed in the frontend application.
+---
 
-### Project Structure
+## Project Structure
 
 ```text
 Backend/
@@ -40,11 +42,399 @@ Backend/
         └── newsService.js
 ```
 
+---
+
+## Stack
+
+- **Runtime:** Node.js + Express
+- **Database:** MongoDB (Mongoose)
+- **Auth:** JWT (Bearer tokens)
+- **External APIs:** GNews, The Guardian Open Platform
+
+---
+
 ## Requirements
 
-* Node.js 20 or newer
-* MongoDB Community Server or MongoDB Atlas
-* GNews API key and/or The Guardian Open Platform API key
+- Node.js 20 or newer
+- MongoDB Community Server or MongoDB Atlas
+- GNews API key and/or The Guardian Open Platform API key
+
+---
+
+## Response Format
+
+All endpoints return a consistent JSON shape.
+
+**Success:**
+```json
+{
+  "success": true,
+  "message": "Optional message",
+  "data": { }
+}
+```
+
+**Error:**
+```json
+{
+  "success": false,
+  "message": "Human-readable error message"
+}
+```
+
+---
+
+## Authentication
+
+Protected endpoints require a JWT sent in the `Authorization` header:
+
+```
+Authorization: Bearer <token>
+```
+
+Tokens are issued on register/login, expire in **24 hours**, and encode:
+
+```json
+{ "userId": "<mongo id>", "role": "user" | "editor" | "admin" }
+```
+
+### Role-based access
+
+| Role | Can do |
+|---|---|
+| `user` | Read public content |
+| `editor` | Everything `user` can, plus create/update articles |
+| `admin` | Everything `editor` can, plus delete articles |
+
+New registrations default to `user`. To create an editor or admin, promote the user manually in MongoDB (change the `role` field).
+
+---
+
+## Endpoints
+
+### Health
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| GET | `/health` | No | Verify the API is running |
+
+**Success response:**
+```json
+{ "success": true, "message": "News Aggregator API is running" }
+```
+
+---
+
+### Auth
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| POST | `/auth/register` | No | Create a new user |
+| POST | `/auth/login` | No | Authenticate and receive a JWT |
+
+#### POST `/auth/register`
+
+**Request body:**
+```json
+{
+  "name": "Jane Doe",
+  "email": "jane@example.com",
+  "password": "secret123"
+}
+```
+
+**Success response (201):**
+```json
+{
+  "success": true,
+  "data": {
+    "user": {
+      "id": "...",
+      "name": "Jane Doe",
+      "email": "jane@example.com",
+      "role": "user"
+    },
+    "token": "eyJhbGc..."
+  }
+}
+```
+
+**Errors:**
+- `400` — Missing/invalid fields
+- `409` — Email already registered
+
+#### POST `/auth/login`
+
+**Request body:**
+```json
+{
+  "email": "jane@example.com",
+  "password": "secret123"
+}
+```
+
+**Success response (200):** same shape as register.
+
+**Errors:**
+- `400` — Missing fields
+- `401` — Invalid credentials
+
+---
+
+### News (external aggregation)
+
+Live news fetched from GNews and The Guardian. **No authentication required.**
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/news/filters` | List available sections and countries |
+| GET | `/news/headlines` | Top headlines by category and country |
+| GET | `/news/sections/:section` | Fetch a named section (e.g. `sport`, `technology`) |
+| GET | `/news` | Search across providers |
+
+#### GET `/news/filters`
+
+**Success response:**
+```json
+{
+  "success": true,
+  "data": {
+    "sections": [
+      { "slug": "news", "label": "News", "mode": "headlines", "category": "general" },
+      { "slug": "sport", "label": "Sport", "mode": "headlines", "category": "sports" }
+    ],
+    "countries": [ { "code": "us", "name": "United States" } ],
+    "gnewsCategories": ["general", "world", "business", "technology"]
+  }
+}
+```
+
+#### GET `/news/headlines`
+
+**Query parameters:**
+
+| Name | Type | Default | Notes |
+|---|---|---|---|
+| `category` | string | `general` | Must be a valid GNews category |
+| `country` | string | – | ISO 2-letter country code |
+| `page` | number | `1` | 1-based |
+| `pageSize` | number | `10` | Max 50 |
+
+**Success response:**
+```json
+{
+  "success": true,
+  "data": {
+    "articles": [
+      {
+        "title": "...",
+        "description": "...",
+        "url": "https://...",
+        "imageUrl": "https://...",
+        "publishedAt": "2026-10-05T12:00:00Z",
+        "author": "...",
+        "section": "general",
+        "provider": "gnews"
+      }
+    ],
+    "providers": { "succeeded": ["gnews"], "failed": [] },
+    "pagination": { "page": 1, "pageSize": 10, "totalArticles": 1000, "totalPages": 100 }
+  }
+}
+```
+
+**Errors:**
+- `400` — Unsupported category or country
+- `500` — Provider unavailable
+
+#### GET `/news/sections/:section`
+
+Named sections defined in the backend (see `/news/filters`). Same query params and response shape as `/news/headlines`, plus a `section` object.
+
+**Errors:**
+- `404` — Unknown section slug
+
+#### GET `/news`
+
+**Query parameters:**
+
+| Name | Type | Required | Notes |
+|---|---|---|---|
+| `q` | string | Yes | Min 2 characters |
+| `country` | string | No | ISO 2-letter code |
+| `pageSize` | number | No | Max 50 |
+| `from` | date | No | ISO date |
+| `to` | date | No | ISO date |
+
+Aggregates results from **all configured providers**, deduplicates by URL, and sorts by most recent.
+
+**Success response:**
+```json
+{
+  "success": true,
+  "data": {
+    "articles": [ "...same shape..." ],
+    "providers": { "succeeded": ["gnews", "guardian"], "failed": [] }
+  }
+}
+```
+
+**Errors:**
+- `400` — Missing or too-short query
+- `502`/`503` — All providers unavailable
+
+---
+
+### Articles (editorial CRUD)
+
+Original articles written by editors/admins. Publicly readable, protected for writes.
+
+| Method | Path | Auth | Role |
+|---|---|---|---|
+| GET | `/articles` | No | – |
+| GET | `/articles/:id` | No | – |
+| POST | `/articles` | Yes | editor, admin |
+| PUT | `/articles/:id` | Yes | editor, admin |
+| DELETE | `/articles/:id` | Yes | admin |
+
+#### GET `/articles`
+
+**Query parameters:**
+
+| Name | Type | Default | Notes |
+|---|---|---|---|
+| `category` | string | – | Filter by category slug |
+| `search` | string | – | Full-text search across title/description/content |
+| `page` | number | `1` | 1-based |
+| `limit` | number | `20` | Max 100 |
+
+**Success response:**
+```json
+{
+  "success": true,
+  "data": {
+    "articles": [
+      {
+        "_id": "...",
+        "title": "...",
+        "description": "...",
+        "content": "...",
+        "url": "https://...",
+        "imageUrl": null,
+        "author": "Jane Doe",
+        "source": null,
+        "section": null,
+        "category": "technology",
+        "language": "en",
+        "publishedAt": "2026-10-05T10:00:00.000Z",
+        "author_user": "<user id>",
+        "createdAt": "...",
+        "updatedAt": "..."
+      }
+    ],
+    "pagination": { "page": 1, "limit": 20, "total": 1, "totalPages": 1 }
+  }
+}
+```
+
+#### GET `/articles/:id`
+
+**Success response:**
+```json
+{ "success": true, "data": { "article": { "...": "..." } } }
+```
+
+**Errors:**
+- `400` — Invalid Mongo ObjectId
+- `404` — Article not found
+
+#### POST `/articles` *(editor, admin)*
+
+**Request body:**
+```json
+{
+  "title": "How AI is reshaping newsrooms",
+  "description": "A short summary.",
+  "content": "Full article text...",
+  "url": "https://example.com/ai-newsrooms",
+  "imageUrl": "https://example.com/cover.jpg",
+  "author": "Jane Doe",
+  "source": "TheFeeds",
+  "section": "technology",
+  "category": "technology",
+  "language": "en",
+  "publishedAt": "2026-10-05T10:00:00.000Z"
+}
+```
+
+**Required:** `title`, `url`, `publishedAt`.
+
+**Success response (201):**
+```json
+{ "success": true, "message": "Article created successfully", "data": { "article": { "...": "..." } } }
+```
+
+**Errors:**
+- `400` — Validation failure (invalid field, missing required, bad date)
+- `401` — Missing/invalid token
+- `403` — Not an editor/admin
+
+#### PUT `/articles/:id` *(editor, admin)*
+
+Same body as POST (partial updates allowed). Returns the updated article.
+
+#### DELETE `/articles/:id` *(admin only)*
+
+**Success response:**
+```json
+{ "success": true, "message": "Article deleted successfully", "data": null }
+```
+
+**Errors:**
+- `401` — Missing/invalid token
+- `403` — Not an admin
+- `404` — Not found
+
+---
+
+## Article Validation
+
+Article creation and update requests are validated before reaching the controller.
+
+The validation middleware checks that:
+
+- The request body is a JSON object.
+- Required fields are present (`title`, `url`, `publishedAt`).
+- String fields contain string values.
+- `publishedAt` contains a valid date.
+- Only supported article fields are submitted.
+- The article ID is a valid MongoDB ObjectId when supplied.
+
+### Validation error example
+
+```json
+{
+  "success": false,
+  "message": "Invalid article data",
+  "errors": ["title is required"]
+}
+```
+
+---
+
+## Error codes summary
+
+| Status | Meaning |
+|---|---|
+| 400 | Validation error / bad input |
+| 401 | Missing or invalid authentication |
+| 403 | Authenticated but insufficient role |
+| 404 | Resource not found |
+| 409 | Conflict (duplicate email, duplicate URL) |
+| 500 | Server error |
+| 502/503 | External provider unavailable |
+
+---
 
 ## Setup
 
@@ -56,14 +446,14 @@ npm install
 
 2. Create a `.env` file using `.env.example` as a guide.
 
-3. Add the required environment variables, including:
+3. Add the required environment variables:
 
 ```text
 MONGODB_URI=your_mongodb_connection_string
 JWT_SECRET=your_jwt_secret
+GNEWS_API_KEY=your_gnews_key
+GUARDIAN_API_KEY=your_guardian_key
 ```
-
-Add the news provider API keys that are required by the application.
 
 4. Start the development server:
 
@@ -71,516 +461,27 @@ Add the news provider API keys that are required by the application.
 npm run dev
 ```
 
-The API runs on the configured server port.
+Server listens on `http://localhost:5000`.
 
 **Never commit `.env` or expose API keys in the frontend application.**
 
----
+### Environment variables
 
-# API
+| Variable | Required | Purpose |
+|---|---|---|
+| `PORT` | No | Defaults to 5000 |
+| `NODE_ENV` | No | `development` or `production` |
+| `MONGODB_URI` | Yes | MongoDB connection string |
+| `JWT_SECRET` | Yes | Secret for signing JWT tokens |
+| `GNEWS_API_KEY` | Yes* | GNews API key |
+| `GUARDIAN_API_KEY` | No | Guardian API key (adds second provider) |
+| `CORS_ORIGIN` | No | Comma-separated allowed origins |
 
-## Base URL
-
-```text
-/api/v1
-```
-
-All API responses use a consistent structure.
-
-### Successful response
-
-```json
-{
-  "success": true,
-  "data": {}
-}
-```
-
-### Error response
-
-```json
-{
-  "success": false,
-  "message": "Error message"
-}
-```
+\* At least one news provider key is required for `/news/*` endpoints.
 
 ---
 
-# Health Check
-
-## GET `/api/v1/health`
-
-Checks whether the API is running.
-
-### Authentication
-
-Not required.
-
-### Example response
-
-```json
-{
-  "success": true,
-  "message": "News Aggregator API is running"
-}
-```
-
----
-
-# Authentication
-
-## POST `/api/v1/auth/register`
-
-Creates a new user account.
-
-### Authentication
-
-Not required.
-
-### Request body
-
-```json
-{
-  "name": "Ada",
-  "email": "ada@example.com",
-  "password": "a-long-password"
-}
-```
-
-### Method
-
-```text
-POST
-```
-
----
-
-## POST `/api/v1/auth/login`
-
-Authenticates an existing user.
-
-### Authentication
-
-Not required.
-
-### Request body
-
-```json
-{
-  "email": "ada@example.com",
-  "password": "a-long-password"
-}
-```
-
-### Method
-
-```text
-POST
-```
-
----
-
-# News Endpoints
-
-News endpoints retrieve and search articles from configured external news providers.
-
-## GET `/api/v1/news`
-
-Searches for news articles.
-
-### Authentication
-
-Not required.
-
-### Query parameters
-
-| Parameter  | Required | Description                                      |
-| ---------- | -------- | ------------------------------------------------ |
-| `q`        | Yes      | Search term. Must contain at least 2 characters. |
-| `pageSize` | No       | Number of results. Limited to 1–50.              |
-| `from`     | No       | Start date for the search.                       |
-| `to`       | No       | End date for the search.                         |
-| `country`  | No       | GNews country code.                              |
-
-### Example
-
-```text
-GET /api/v1/news?q=climate&pageSize=10&from=2026-09-01&to=2026-09-30&country=gb
-```
-
-The response contains normalized articles from the configured providers.
-
----
-
-## GET `/api/v1/news/filters`
-
-Returns the available editorial sections and supported country codes.
-
-### Authentication
-
-Not required.
-
----
-
-## GET `/api/v1/news/headlines`
-
-Retrieves top headlines from GNews.
-
-### Authentication
-
-Not required.
-
-### Query parameters
-
-| Parameter  | Required | Description                   |
-| ---------- | -------- | ----------------------------- |
-| `category` | No       | News category.                |
-| `country`  | No       | Supported GNews country code. |
-| `page`     | No       | Page number.                  |
-| `pageSize` | No       | Number of results per page.   |
-
-### Supported categories
-
-```text
-general
-world
-nation
-business
-technology
-entertainment
-sports
-science
-health
-```
-
-### Example
-
-```text
-GET /api/v1/news/headlines?category=business&country=gb&page=1&pageSize=10
-```
-
----
-
-## GET `/api/v1/news/sections/:section`
-
-Retrieves news for a configured editorial section.
-
-### Authentication
-
-Not required.
-
-### Query parameters
-
-| Parameter  | Required | Description                 |
-| ---------- | -------- | --------------------------- |
-| `country`  | No       | GNews country code.         |
-| `page`     | No       | Page number.                |
-| `pageSize` | No       | Number of results per page. |
-
-### Example
-
-```text
-GET /api/v1/news/sections/sports?country=gb&page=1&pageSize=10
-```
-
-Some editorial sections use keyword searches when there is no directly matching GNews category.
-
----
-
-# Article Endpoints
-
-Article endpoints provide database-backed article management.
-
-## POST `/api/v1/articles`
-
-Creates a new article.
-
-### Authentication
-
-**Required.**
-
-The request must include a valid JWT:
-
-```text
-Authorization: Bearer <token>
-```
-
-### Request body
-
-```json
-{
-  "title": "Example News Article",
-  "description": "A short description of the article.",
-  "content": "Article content.",
-  "url": "https://example.com/article",
-  "imageUrl": "https://example.com/image.jpg",
-  "author": "Author Name",
-  "source": "Example Source",
-  "name": "Example News",
-  "section": "world",
-  "provider": "gnews",
-  "category": "world",
-  "language": "en",
-  "publishedAt": "2026-10-05T10:00:00.000Z",
-  "externalId": "example-123"
-}
-```
-
-### Required fields
-
-The following fields are required:
-
-```text
-title
-url
-name
-provider
-publishedAt
-```
-
-### Supported providers
-
-```text
-gnews
-guardian
-```
-
-### Supported categories
-
-```text
-politics
-business
-entertainment
-general
-health
-science
-sports
-technology
-world
-lifestyle
-fashion
-travel
-food
-culture
-education
-environment
-opinion
-other
-```
-
----
-
-## GET `/api/v1/articles`
-
-Returns all stored articles.
-
-### Authentication
-
-Not required.
-
-### Example
-
-```text
-GET /api/v1/articles
-```
-
----
-
-## GET `/api/v1/articles/:id`
-
-Returns a single article by its MongoDB ID.
-
-### Authentication
-
-Not required.
-
-### Example
-
-```text
-GET /api/v1/articles/68c123456789abcdef123456
-```
-
-If the ID is invalid, the API returns:
-
-```json
-{
-  "success": false,
-  "message": "Invalid article ID"
-}
-```
-
-If the article does not exist:
-
-```json
-{
-  "success": false,
-  "message": "Article not found"
-}
-```
-
----
-
-# Article Validation
-
-Article creation requests are validated before reaching the controller.
-
-The validation middleware checks that:
-
-* The request body is a JSON object.
-* Required fields are present.
-* String fields contain string values.
-* `publishedAt` contains a valid date.
-* Only supported article fields are submitted.
-* The article ID is a valid MongoDB ObjectId when an ID is supplied.
-
-### Validation error example
-
-```json
-{
-  "success": false,
-  "message": "Invalid article data",
-  "errors": [
-    "title is required"
-  ]
-}
-```
-
----
-
-# Authentication Middleware
-
-Protected endpoints use JWT authentication.
-
-The client must send the token using the `Authorization` header:
-
-```text
-Authorization: Bearer <token>
-```
-
-Possible authentication errors include:
-
-```json
-{
-  "success": false,
-  "message": "Authentication required"
-}
-```
-
-```json
-{
-  "success": false,
-  "message": "Token not found"
-}
-```
-
-```json
-{
-  "success": false,
-  "message": "Invalid or expired token"
-}
-```
-
----
-
-# HTTP Status Codes
-
-| Status | Meaning                             |
-| ------ | ----------------------------------- |
-| `200`  | Request successful                  |
-| `201`  | Resource successfully created       |
-| `400`  | Invalid request or validation error |
-| `401`  | Authentication required or invalid  |
-| `404`  | Resource or route not found         |
-| `500`  | Internal server error               |
-
----
-
-# Current Article CRUD Status
-
-The article controller currently contains functions for:
-
-* Creating articles
-* Retrieving all articles
-* Retrieving an article by ID
-* Updating an article
-* Deleting an article
-
-The currently registered article routes are:
-
-```text
-POST   /api/v1/articles
-GET    /api/v1/articles
-GET    /api/v1/articles/:id
-```
-
-The update and delete controller functions exist but their routes are not currently registered in `articleRoutes.js`.
-
----
-
-# API Endpoint Summary
-
-| Method | Endpoint                         | Authentication | Purpose              |
-| ------ | -------------------------------- | -------------- | -------------------- |
-| GET    | `/api/v1/health`                 | No             | Check API status     |
-| POST   | `/api/v1/auth/register`          | No             | Register a user      |
-| POST   | `/api/v1/auth/login`             | No             | Log in a user        |
-| GET    | `/api/v1/news`                   | No             | Search news          |
-| GET    | `/api/v1/news/filters`           | No             | Get news filters     |
-| GET    | `/api/v1/news/headlines`         | No             | Get top headlines    |
-| GET    | `/api/v1/news/sections/:section` | No             | Get section news     |
-| POST   | `/api/v1/articles`               | Yes            | Create an article    |
-| GET    | `/api/v1/articles`               | No             | Get all articles     |
-| GET    | `/api/v1/articles/:id`           | No             | Get an article by ID |
-
----
-
-# Dependencies
-
-### Runtime dependencies
-
-* Express
-* Mongoose
-* bcryptjs
-* jsonwebtoken
-* dotenv
-* Helmet
-* CORS
-
-### Development dependencies
-
-* Nodemon
-* Supertest
-
----
-
-# Security
-
-The backend follows several security practices:
-
-* Passwords are hashed before storage.
-* JWT is used for authentication.
-* Protected routes require authentication.
-* Helmet is used for HTTP security headers.
-* CORS is configured through environment settings.
-* API keys and secrets are stored in environment variables.
-* Passwords and secrets should not be exposed in API responses or committed to the repository.
-
----
-
-# Development
-
-Start the development server with:
-
-```bash
-npm run dev
-```
-
-Start the application using Node:
-
-```bash
-npm start
-```
+## Testing
 
 Run the test command:
 
@@ -588,11 +489,82 @@ Run the test command:
 npm test
 ```
 
+Test files live in `Backend/test/`:
+- `auth.test.js`
+- `newsService.test.js`
+- `userValidation.test.js`
+
 ---
 
-# Delivery Phases
+## Promoting a user to editor or admin
+
+New registrations always get role `user`. To promote:
+
+1. Open MongoDB Atlas → Browse Collections → `users`
+2. Find the user by email
+3. Edit `role` to `"editor"` or `"admin"`
+4. Save
+5. Log in again to receive a fresh token with the new role
+
+---
+
+## Dependencies
+
+### Runtime dependencies
+
+- Express
+- Mongoose
+- bcryptjs
+- jsonwebtoken
+- dotenv
+- Helmet
+- CORS
+
+### Development dependencies
+
+- Nodemon
+- Supertest
+
+---
+
+## Security
+
+The backend follows several security practices:
+
+- Passwords are hashed before storage (bcrypt, cost 12).
+- JWT is used for authentication.
+- Protected routes require authentication.
+- Role-based authorization for write operations.
+- Helmet is used for HTTP security headers.
+- CORS is configured through environment settings.
+- API keys and secrets are stored in environment variables.
+- Passwords and secrets are not exposed in API responses.
+- User input is validated on the backend regardless of frontend validation.
+
+---
+
+## Delivery Phases
 
 1. **Backend foundation** — API setup, authentication, news providers, article model, routes, and validation.
 2. **Frontend integration** — React frontend connected to the backend API.
 3. **Personalization** — Saved articles and user preferences.
 4. **Quality and production readiness** — Testing, validation improvements, rate limiting, logging, deployment, and CI checks.
+
+---
+
+## API Endpoint Summary
+
+| Method | Endpoint | Auth | Role | Purpose |
+| ------ | -------- | ---- | ---- | ------- |
+| GET | `/api/v1/health` | No | – | Check API status |
+| POST | `/api/v1/auth/register` | No | – | Register a user |
+| POST | `/api/v1/auth/login` | No | – | Log in a user |
+| GET | `/api/v1/news` | No | – | Search news |
+| GET | `/api/v1/news/filters` | No | – | Get news filters |
+| GET | `/api/v1/news/headlines` | No | – | Get top headlines |
+| GET | `/api/v1/news/sections/:section` | No | – | Get section news |
+| GET | `/api/v1/articles` | No | – | List articles |
+| GET | `/api/v1/articles/:id` | No | – | Get an article by ID |
+| POST | `/api/v1/articles` | Yes | editor, admin | Create an article |
+| PUT | `/api/v1/articles/:id` | Yes | editor, admin | Update an article |
+| DELETE | `/api/v1/articles/:id` | Yes | admin | Delete an article |
