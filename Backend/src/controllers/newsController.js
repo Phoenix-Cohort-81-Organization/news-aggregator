@@ -85,11 +85,30 @@ exports.getSectionNews = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Unsupported GNews country code' });
     }
 
-    const requestedPageSize = Number.parseInt(req.query.pageSize, 10) || 10;
-    const pageSize = Math.min(Math.max(requestedPageSize, 1), 50);
+   const requestedPageSize = req.query.pageSize !== undefined
+  ? Number(req.query.pageSize)
+  : 10;
+
+if (!Number.isInteger(requestedPageSize) || requestedPageSize < 1 || requestedPageSize > 50) {
+  return res.status(400).json({
+    success: false,
+    message: 'Page size must be an integer between 1 and 50',
+  });
+}
+
+const pageSize = requestedPageSize;
 
     if (section.mode === 'headlines') {
-      const requestedPage = Number.parseInt(req.query.page, 10) || 1;
+const requestedPage = req.query.page !== undefined
+  ? Number(req.query.page)
+  : 1;
+
+if (!Number.isInteger(requestedPage) || requestedPage < 1) {
+  return res.status(400).json({
+    success: false,
+    message: 'Page must be a positive integer',
+  });
+}
       const maxPage = Math.ceil(1000 / pageSize);
       const page = Math.min(Math.max(requestedPage, 1), maxPage);
       const result = await getTopHeadlines({
@@ -126,10 +145,31 @@ exports.getTopHeadlines = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Unsupported GNews country code' });
     }
 
-    const requestedPage = Number.parseInt(req.query.page, 10) || 1;
-    const requestedPageSize = Number.parseInt(req.query.pageSize, 10) || 10;
-    const pageSize = Math.min(Math.max(requestedPageSize, 1), 50);
-    const maxPage = Math.ceil(1000 / pageSize);
+   const requestedPage = req.query.page !== undefined
+  ? Number(req.query.page)
+  : 1;
+
+const requestedPageSize = req.query.pageSize !== undefined
+  ? Number(req.query.pageSize)
+  : 10;
+
+if (!Number.isInteger(requestedPage) || requestedPage < 1) {
+  return res.status(400).json({
+    success: false,
+    message: 'Page must be a positive integer',
+  });
+}
+
+if (!Number.isInteger(requestedPageSize) || requestedPageSize < 1 || requestedPageSize > 50) {
+  return res.status(400).json({
+    success: false,
+    message: 'Page size must be an integer between 1 and 50',
+  });
+}
+
+const pageSize = requestedPageSize;
+const maxPage = Math.ceil(1000 / pageSize);
+    
     const result = await getTopHeadlines({
       category,
       country,
@@ -145,31 +185,114 @@ exports.getTopHeadlines = async (req, res, next) => {
 
 exports.searchNews = async (req, res, next) => {
   try {
-    const query = typeof req.query.q === 'string' ? req.query.q.trim() : '';
-    if (!query || query.length < 2) {
-      return res.status(400).json({ success: false, message: 'Search query must be at least 2 characters' });
+    const query = typeof req.query.q === 'string'
+      ? req.query.q.trim()
+      : '';
+
+    if (!query) {
+      return res.status(400).json({
+        success: false,
+        message: 'Search query is required',
+      });
     }
 
-    const requestedPageSize = Number.parseInt(req.query.pageSize, 10) || 10;
-    const pageSize = Math.min(Math.max(requestedPageSize, 1), 50);
+    if (query.length < 2) {
+      return res.status(400).json({
+        success: false,
+        message: 'Search query must be at least 2 characters',
+      });
+    }
+
+    const requestedPage = req.query.page !== undefined
+  ? Number(req.query.page)
+  : 1;
+
+const requestedPageSize = req.query.pageSize !== undefined
+  ? Number(req.query.pageSize)
+  : 10;
+
+if (!Number.isInteger(requestedPage) || requestedPage < 1) {
+  return res.status(400).json({
+    success: false,
+    message: 'Page must be a positive integer',
+  });
+}
+
+if (!Number.isInteger(requestedPageSize) || requestedPageSize < 1 || requestedPageSize > 50) {
+  return res.status(400).json({
+    success: false,
+    message: 'Page size must be an integer between 1 and 50',
+  });
+}
+
+    if (requestedPage < 1) {
+      return res.status(400).json({
+        success: false,
+        message: 'Page must be at least 1',
+      });
+    }
+
+    if (requestedPageSize < 1 || requestedPageSize > 50) {
+      return res.status(400).json({
+        success: false,
+        message: 'Page size must be between 1 and 50',
+      });
+    }
+
+    const from = typeof req.query.from === 'string'
+  ? req.query.from.trim()
+  : undefined;
+
+const to = typeof req.query.to === 'string'
+  ? req.query.to.trim()
+  : undefined;
+
+if (from && Number.isNaN(Date.parse(from))) {
+  return res.status(400).json({
+    success: false,
+    message: 'Invalid from date',
+  });
+}
+
+if (to && Number.isNaN(Date.parse(to))) {
+  return res.status(400).json({
+    success: false,
+    message: 'Invalid to date',
+  });
+}
+
+if (from && to && new Date(from) > new Date(to)) {
+  return res.status(400).json({
+    success: false,
+    message: 'From date cannot be later than to date',
+  });
+}
+
     const country = typeof req.query.country === 'string'
       ? req.query.country.toLowerCase()
       : undefined;
+
     if (country && !countryCodes.has(country)) {
-      return res.status(400).json({ success: false, message: 'Unsupported GNews country code' });
+      return res.status(400).json({
+        success: false,
+        message: 'Unsupported GNews country code',
+      });
     }
 
     const result = await searchNews({
       query,
-      pageSize,
+      pageSize: requestedPageSize,
       page: requestedPage,
-      from: req.query.from,
-      to: req.query.to,
+      from,
+      to,
       country,
     });
 
-    res.json({ success: true, data: result });
+    return res.json({
+      success: true,
+      data: result,
+    });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
