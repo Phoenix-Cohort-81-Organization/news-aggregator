@@ -74,3 +74,83 @@ test('creates an article with an authenticated editor', async () => {
 
   assert.equal(response.body.data.article.title, 'Test Article');
 });
+
+test('gets the created article by ID', async () => {
+  const response = await request(app)
+    .get(`/api/v1/articles/${createdArticleId}`);
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.success, true);
+  assert.ok(response.body.data.article);
+
+  assert.equal(
+    response.body.data.article._id,
+    createdArticleId
+  );
+
+  assert.equal(
+    response.body.data.article.title,
+    'Test Article'
+  );
+});
+
+test('updates the created article with an authenticated editor', async () => {
+  const response = await request(app)
+    .put(`/api/v1/articles/${createdArticleId}`)
+    .set('Authorization', `Bearer ${editorToken}`)
+    .send({
+      title: 'Updated Test Article',
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.success, true);
+  assert.equal(response.body.message, 'Article updated successfully');
+  assert.ok(response.body.data.article);
+
+  assert.equal(
+    response.body.data.article._id,
+    createdArticleId
+  );
+
+  assert.equal(
+    response.body.data.article.title,
+    'Updated Test Article'
+  );
+});
+
+test('deletes the created article with an authenticated admin', async () => {
+  // Create an admin user for the delete test
+  const adminEmail = uniqueEmail();
+
+  await User.create({
+    name: 'Article Test Admin',
+    email: adminEmail,
+    password: '123456',
+    role: 'admin',
+  });
+
+  const loginResponse = await request(app)
+    .post('/api/v1/auth/login')
+    .send({
+      email: adminEmail,
+      password: '123456',
+    });
+
+  assert.equal(loginResponse.status, 200);
+  assert.ok(loginResponse.body.data.token);
+
+  const adminToken = loginResponse.body.data.token;
+
+  const response = await request(app)
+    .delete(`/api/v1/articles/${createdArticleId}`)
+    .set('Authorization', `Bearer ${adminToken}`);
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.success, true);
+  assert.equal(response.body.message, 'Article deleted successfully');
+  assert.equal(response.body.data, null);
+
+  createdArticleId = null;
+});
+
+
