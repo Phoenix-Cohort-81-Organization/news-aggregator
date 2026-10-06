@@ -163,8 +163,27 @@ exports.searchNews = async (req, res, next) => {
       });
     }
 
-    const requestedPage = Number.parseInt(req.query.page, 10) || 1;
-    const requestedPageSize = Number.parseInt(req.query.pageSize, 10) || 10;
+    const requestedPage = req.query.page !== undefined
+  ? Number(req.query.page)
+  : 1;
+
+const requestedPageSize = req.query.pageSize !== undefined
+  ? Number(req.query.pageSize)
+  : 10;
+
+if (!Number.isInteger(requestedPage) || requestedPage < 1) {
+  return res.status(400).json({
+    success: false,
+    message: 'Page must be a positive integer',
+  });
+}
+
+if (!Number.isInteger(requestedPageSize) || requestedPageSize < 1 || requestedPageSize > 50) {
+  return res.status(400).json({
+    success: false,
+    message: 'Page size must be an integer between 1 and 50',
+  });
+}
 
     if (requestedPage < 1) {
       return res.status(400).json({
