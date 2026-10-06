@@ -85,11 +85,30 @@ exports.getSectionNews = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Unsupported GNews country code' });
     }
 
-    const requestedPageSize = Number.parseInt(req.query.pageSize, 10) || 10;
-    const pageSize = Math.min(Math.max(requestedPageSize, 1), 50);
+   const requestedPageSize = req.query.pageSize !== undefined
+  ? Number(req.query.pageSize)
+  : 10;
+
+if (!Number.isInteger(requestedPageSize) || requestedPageSize < 1 || requestedPageSize > 50) {
+  return res.status(400).json({
+    success: false,
+    message: 'Page size must be an integer between 1 and 50',
+  });
+}
+
+const pageSize = requestedPageSize;
 
     if (section.mode === 'headlines') {
-      const requestedPage = Number.parseInt(req.query.page, 10) || 1;
+const requestedPage = req.query.page !== undefined
+  ? Number(req.query.page)
+  : 1;
+
+if (!Number.isInteger(requestedPage) || requestedPage < 1) {
+  return res.status(400).json({
+    success: false,
+    message: 'Page must be a positive integer',
+  });
+}
       const maxPage = Math.ceil(1000 / pageSize);
       const page = Math.min(Math.max(requestedPage, 1), maxPage);
       const result = await getTopHeadlines({
