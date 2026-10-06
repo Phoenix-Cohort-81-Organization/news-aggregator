@@ -145,31 +145,66 @@ exports.getTopHeadlines = async (req, res, next) => {
 
 exports.searchNews = async (req, res, next) => {
   try {
-    const query = typeof req.query.q === 'string' ? req.query.q.trim() : '';
-    if (!query || query.length < 2) {
-      return res.status(400).json({ success: false, message: 'Search query must be at least 2 characters' });
+    const query = typeof req.query.q === 'string'
+      ? req.query.q.trim()
+      : '';
+
+    if (!query) {
+      return res.status(400).json({
+        success: false,
+        message: 'Search query is required',
+      });
     }
 
+    if (query.length < 2) {
+      return res.status(400).json({
+        success: false,
+        message: 'Search query must be at least 2 characters',
+      });
+    }
+
+    const requestedPage = Number.parseInt(req.query.page, 10) || 1;
     const requestedPageSize = Number.parseInt(req.query.pageSize, 10) || 10;
-    const pageSize = Math.min(Math.max(requestedPageSize, 1), 50);
+
+    if (requestedPage < 1) {
+      return res.status(400).json({
+        success: false,
+        message: 'Page must be at least 1',
+      });
+    }
+
+    if (requestedPageSize < 1 || requestedPageSize > 50) {
+      return res.status(400).json({
+        success: false,
+        message: 'Page size must be between 1 and 50',
+      });
+    }
+
     const country = typeof req.query.country === 'string'
       ? req.query.country.toLowerCase()
       : undefined;
+
     if (country && !countryCodes.has(country)) {
-      return res.status(400).json({ success: false, message: 'Unsupported GNews country code' });
+      return res.status(400).json({
+        success: false,
+        message: 'Unsupported GNews country code',
+      });
     }
 
     const result = await searchNews({
       query,
-      pageSize,
+      pageSize: requestedPageSize,
       page: requestedPage,
       from: req.query.from,
       to: req.query.to,
       country,
     });
 
-    res.json({ success: true, data: result });
+    return res.json({
+      success: true,
+      data: result,
+    });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
