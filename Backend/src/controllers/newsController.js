@@ -180,6 +180,35 @@ exports.searchNews = async (req, res, next) => {
       });
     }
 
+    const from = typeof req.query.from === 'string'
+  ? req.query.from.trim()
+  : undefined;
+
+const to = typeof req.query.to === 'string'
+  ? req.query.to.trim()
+  : undefined;
+
+if (from && Number.isNaN(Date.parse(from))) {
+  return res.status(400).json({
+    success: false,
+    message: 'Invalid from date',
+  });
+}
+
+if (to && Number.isNaN(Date.parse(to))) {
+  return res.status(400).json({
+    success: false,
+    message: 'Invalid to date',
+  });
+}
+
+if (from && to && new Date(from) > new Date(to)) {
+  return res.status(400).json({
+    success: false,
+    message: 'From date cannot be later than to date',
+  });
+}
+
     const country = typeof req.query.country === 'string'
       ? req.query.country.toLowerCase()
       : undefined;
@@ -195,8 +224,8 @@ exports.searchNews = async (req, res, next) => {
       query,
       pageSize: requestedPageSize,
       page: requestedPage,
-      from: req.query.from,
-      to: req.query.to,
+      from,
+      to,
       country,
     });
 
